@@ -1,0 +1,5 @@
+# Need a dockerignore because the root directory needs to be Docker build context.  The whole directory is sent to the docker daemon
+# See https://stackoverflow.com/questions/26600769/build-context-for-docker-image-very-large
+# https://stackoverflow.com/questions/54793349/ignore-all-git-folders-in-dockerignore
+**/.git
+venv
