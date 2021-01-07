@@ -436,9 +436,9 @@ if __name__ == '__main__':
     # printArcs(G)
     print('==== Cycles =====')
     cycles, cycleInitConds = getCycles(G)
-    printCycles(G, cycles, cycleInitConds, dblBufferType, False)
-    print('==== Failing Cycles =====')
     printCycles(G, cycles, cycleInitConds, dblBufferType, True)
+    print('==== Failing Cycles =====')
+    printCycles(G, cycles, cycleInitConds, dblBufferType, False)
 
     plotCycles(G, cycles, cycleInitConds, dblBufferType, True, False, plotAllNodes, outputName)
     plotCycles(G, cycles, cycleInitConds, dblBufferType, False, False, plotAllNodes, outputName+'_fail')
