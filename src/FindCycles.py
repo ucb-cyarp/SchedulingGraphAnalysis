@@ -186,7 +186,7 @@ def printCycles(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBufferTyp
                     src = node
 
             if printAll:
-                print('Nodes: {:>2}, InitCond: {:>2}, EffInitCond: {:>3}, Cycle: {}'.format(nodesInCycles, cycleInitConds[cycleIdx], effInitConditions, cycleLbl))
+                print('Nodes: {:>2}, InitCond: {:>2}, EffInitCond: {:>3}, EffInitCondPerCore: {:>5.2f}, Cycle: {}'.format(nodesInCycles, cycleInitConds[cycleIdx], effInitConditions, effInitConditions/nodesInCycles, cycleLbl))
             else:
                 print('Nodes: {:>2}, InitCond: {:>2}, Cycle: {}'.format(nodesInCycles, cycleInitConds[cycleIdx], cycleLbl))
 
