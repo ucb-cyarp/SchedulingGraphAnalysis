@@ -16,4 +16,4 @@ RUN pip3 install -r requirements.txt
 
 #Copy Program
 RUN mkdir /srv/SchedulingGraphAnalysis/src
-COPY src/* /srv/SchedulingGraphAnalysis/src
+COPY src/* /srv/SchedulingGraphAnalysis/src/

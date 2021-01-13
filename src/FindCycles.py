@@ -48,6 +48,7 @@ def init():
     parser.add_argument('--dblBuffer', type=str, choices=DoubleBufferType.options(), default='none', help='What form of double buffering is in use')
     parser.add_argument('-o', type=str, default='', help='The output for the graph eps file')
     parser.add_argument('--plotAllNodes', action='store_true', help='Plot all nodes in the unified plot')
+    parser.add_argument('--partition-names', nargs='+', type=str, required=False, help='List of human readable names corresponding to each partition (in ascending order of partitions)')
 
     args = parser.parse_args()
 
@@ -59,7 +60,79 @@ def init():
         print('File not found: {}'.format(args.graphmlFile))
         exit(1)
 
+    # Remove Partition -1 if it exists
+    partN1ID = ''
+    ioID = ''
+    for node, data in G.nodes(data=True):
+        if data:
+            if data['block_partition_num'] == -1:
+                partN1ID = node
+            if data['block_partition_num'] == -2:
+                ioID = node
+
+    if partN1ID:
+        n1Neighbors = list(G.neighbors(partN1ID))
+        if n1Neighbors:
+            print('Error, Partition -1 node is connected to other nodes')
+            exit(1)
+        else:
+            print('Removing Partition -1 node')
+            G.remove_node(partN1ID)
+
     print('Imported graph {}\nNodes: {}\nArcs: {}'.format(args.graphmlFile, G.number_of_nodes(), G.number_of_edges()))
+
+    # Set the node labels (and check for duplicate partitions)
+    partitionSet = set()
+
+    if args.partition_names :
+        numOfNonIONodes = G.number_of_nodes()
+        if ioID:
+            numOfNonIONodes -= 1
+
+        if len(args.partition_names) != numOfNonIONodes: #+1 is for the I/O partition
+            print('Number of provided labels ({}) does not match number of non-I/O partitions ({})'.format(len(args.partition_names), numOfNonIONodes))
+            exit(1)
+
+        #Find the first partition number (0 or 1 most likely).  Will assume lables are assigned sequentially from this point
+        startPartID = None
+        for node, data in G.nodes(data=True):
+            if data:
+                partition = int(data['block_partition_num'])
+                if startPartID is None:
+                    if partition >= 0:
+                        startPartID = partition
+                elif partition < startPartID and partition >= 0:
+                    startPartID = int(data['block_partition_num'])
+
+        if startPartID is None:
+            print('Error, could not find first partition')
+            exit(1)
+
+        for node, data in G.nodes(data=True):
+            if data:
+                partition = int(data['block_partition_num'])
+                if partition in partitionSet:
+                    print('Error, Partition {} appeared more than once'.format(partition))
+                    exit(1)
+
+                partitionSet.add(partition)
+
+                if partition == -2:
+                    data['label'] = 'I/O'
+                else:
+                    data['label'] = args.partition_names[partition-startPartID]
+
+    else:
+        # Just use the given instance names
+        for node, data in G.nodes(data=True):
+            if data:
+                partition = int(data['block_partition_num'])
+                if partition in partitionSet:
+                    print('Error, Partition {} appeared more than once'.format(partition))
+                    exit(1)
+                partitionSet.add(partition)
+
+                data['label'] = data['instance_name']
 
     return G, dblBufferType, args.o, args.plotAllNodes
 
@@ -168,7 +241,7 @@ def printCycles(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBufferTyp
 
             for nodeIdx, node in enumerate(cycleListDupNode):
                 if nodeIdx == 0:
-                    cycleLbl += G.nodes[node]['instance_name']
+                    cycleLbl += G.nodes[node]['label']
                     src = node
                 else:
                     arcs = G[src][node]
@@ -181,7 +254,7 @@ def printCycles(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBufferTyp
 
                         cycleLbl += str(arcData['partition_crossing_init_state_count_blocks'])
 
-                    cycleLbl += ')->' + G.nodes[node]['instance_name']
+                    cycleLbl += ')->' + G.nodes[node]['label']
 
                     src = node
 
@@ -266,11 +339,6 @@ def plotCyclesUnified(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBuf
                     src = node
 
             cyclesToPrint += 1
-
-    # Set node labels
-    for node, data in plotGraph.nodes(data=True):
-        if 'instance_name' in data:
-            data['label'] = data['instance_name']
 
     # Set arc labels to be initial conditon.  Also set arcs with no color to be black
     for src, dst, data in plotGraph.edges(data=True):
