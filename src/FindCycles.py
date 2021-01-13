@@ -385,13 +385,13 @@ def plotCyclesSeperate(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBu
             cycleListDupNode.append(cycleListDupNode[0])
 
             subGraph = nx.MultiDiGraph()
-            subGraph.graph['label'] = 'Nodes In Cycle: {}, Init Conds: {}, Eff Init Conds: {}'.format(len(origCycle), cycleInitConds[cycleIdx], effInitConditions)
+            subGraph.graph['label'] = 'Nodes In Cycle: {}, Init Conds: {}, Eff Init Conds: {}, Eff Init Conds Per Core: {:.2f}'.format(len(origCycle), cycleInitConds[cycleIdx], effInitConditions, effInitConditions/len(origCycle))
 
             nodeToPlotNode = {}
 
             #Add nodes from this cycle to the subgraph
             for node in origCycle:
-                nodeLbl = G.nodes[node]['instance_name']
+                nodeLbl = G.nodes[node]['label']
                 subGraph.add_nodes_from([(nodeNum, {'label' : nodeLbl})])
                 nodeToPlotNode[node] = nodeNum
                 nodeNum+=1
