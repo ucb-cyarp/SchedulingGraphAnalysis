@@ -136,21 +136,21 @@ def init():
 
     return G, dblBufferType, args.o, args.plotAllNodes
 
-def printNodes(G: nx.Graph):
+def printNodes(G: nx.MultiDiGraph):
     for node, data in G.nodes(data=True):
         print('Node: {}'.format(node))
         if(data):
             for key, val in data.items():
                 print('\t{}: {}'.format(key, val))
 
-def printArcs(G: nx.Graph):
+def printArcs(G: nx.MultiDiGraph):
     for src, dst, data in G.edges(data=True):
         print('Arc: {}->{}'.format(src, dst))
         if (data):
             for key, val in data.items():
                 print('\t{}: {}'.format(key, val))
 
-def getCycles(G: nx.Graph):
+def getCycles(G: nx.MultiDiGraph):
     # Get the simple cycles of the directed graph
 
     # We will remove the I/O node from the graph so that we see only design cycles
@@ -217,7 +217,7 @@ def getCycles(G: nx.Graph):
 
     return (None, None)
 
-def printCycles(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBufferType, printAll: bool):
+def printCycles(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType, printAll: bool):
     for cycleIdx, cycle in enumerate(cycles):
 
         # The cycle returned from networkx only lists each node once, we need to handle the final loop back from
@@ -263,7 +263,63 @@ def printCycles(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBufferTyp
             else:
                 print('Nodes: {:>2}, InitCond: {:>2}, Cycle: {}'.format(nodesInCycles, cycleInitConds[cycleIdx], cycleLbl))
 
-def plotCyclesUnified(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotAllNodes: bool, filename: str):
+def printNodeStats(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType):
+    nodeCycleCount = {}
+    nodeEffInitCondPerNodeMin = {}
+
+    maxLblLen = len('Name')
+
+    for cycleIdx, cycle in enumerate(cycles):
+
+        # The cycle returned from networkx only lists each node once, we need to handle the final loop back from
+        # the node at the end of the list to the src.  We can do that by simply appending the first node to to the
+        # list
+        origCycle = list(cycle) # In case the cycle iterator was returned
+
+        # Check if the number of initial conditions will cause deadlock
+        effInitConditions = cycleInitConds[cycleIdx]
+        nodesInCycles = len(origCycle)
+        if dblBufType == DoubleBufferType.PRODUCER or dblBufType == DoubleBufferType.CONSUMER:
+            effInitConditions -= nodesInCycles # Each node needs 1 initial condition to prime it
+        elif dblBufType == DoubleBufferType.PRODUCER_CONSUMER:
+            effInitConditions -= nodesInCycles*2 # Each node needs 2 initial conditions to prime it
+        effInitConditionsPerNode = effInitConditions/nodesInCycles
+
+        for node in origCycle:
+            if node not in nodeCycleCount.keys():
+                nodeCycleCount[node] = 1
+                nodeEffInitCondPerNodeMin[node] = effInitConditionsPerNode
+            else:
+                nodeCycleCount[node] += 1
+                nodeEffInitCondPerNodeMin[node] = min(nodeEffInitCondPerNodeMin[node], effInitConditionsPerNode)
+
+    partitions = {}
+    for node, data in G.nodes(data=True):
+        if data:
+            maxLblLen = max(len(G.nodes[node]['label']), maxLblLen)
+            partitions[int(G.nodes[node]['block_partition_num'])] = node
+
+    partitionNums = sorted(partitions.keys())
+
+    headerFormat = 'Part# | {:' + str(maxLblLen) + 's} | Cycles (Omit IO) | Min Eff Init Conds / Node | Input Arcs | Output Arcs'
+    print(headerFormat.format('Name'))
+    for partition in partitionNums:
+        node = partitions[partition]
+        name = G.nodes[node]['label']
+        if node in nodeCycleCount:
+            cycleCount = nodeCycleCount[node]
+            effInitCondPerNodeMin = nodeEffInitCondPerNodeMin[node]
+        else:
+            cycleCount = 0
+            effInitCondPerNodeMin = float('NaN')
+
+        numInputArcs = len(list(G.in_edges(node)))
+        numOutputArcs = len(list(G.out_edges(node)))
+
+        rowFormat = '{:5d} | {:' + str(maxLblLen) + 's} | {:16d} | {:25.2f} | {:10d} | {:11d}'
+        print(rowFormat.format(partition, name, cycleCount, effInitCondPerNodeMin, numInputArcs, numOutputArcs))
+
+def plotCyclesUnified(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotAllNodes: bool, filename: str):
     # Plot all the cycles in one graph but
     plotGraph = copy.deepcopy(G)  # Create a deep copy since we will be changing the dictionaries
 
@@ -360,7 +416,7 @@ def plotCyclesUnified(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBuf
     # aGraph.layout()
     aGraph.draw(filename + '.pdf')
 
-def plotCyclesSeperate(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotAllNodes: bool, filename: str):
+def plotCyclesSeperate(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotAllNodes: bool, filename: str):
     nodeNum = 0
 
     plotGraph = nx.MultiDiGraph()
@@ -427,7 +483,7 @@ def plotCyclesSeperate(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBu
     # # aGraph.layout()
     # aGraph.draw(filename + '.pdf')
 
-def plotCycles(G: nx.Graph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotSeperate: bool, plotAllNodes: bool, filename: str):
+def plotCycles(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotSeperate: bool, plotAllNodes: bool, filename: str):
     # To use networkx with matplotlib, it is probably a good idea to follow he example from
     # https://networkx.org/documentation/stable/auto_examples/drawing/plot_giant_component.html#sphx-glr-auto-examples-drawing-plot-giant-component-py
     # with help from https://stackoverflow.com/questions/15548506/node-labels-using-networkx
@@ -507,6 +563,8 @@ if __name__ == '__main__':
     printCycles(G, cycles, cycleInitConds, dblBufferType, True)
     print('==== Failing Cycles =====')
     printCycles(G, cycles, cycleInitConds, dblBufferType, False)
+    print('==== Node Cycle Stats ====')
+    printNodeStats(G, cycles, cycleInitConds, dblBufferType)
 
     plotCycles(G, cycles, cycleInitConds, dblBufferType, True, False, plotAllNodes, outputName)
     plotCycles(G, cycles, cycleInitConds, dblBufferType, False, False, plotAllNodes, outputName+'_fail')
