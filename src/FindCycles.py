@@ -93,21 +93,21 @@ def init():
             print('Number of provided labels ({}) does not match number of non-I/O partitions ({})'.format(len(args.partition_names), numOfNonIONodes))
             exit(1)
 
-        #Find the first partition number (0 or 1 most likely).  Will assume lables are assigned sequentially from this point
-        startPartID = None
+        #Create a mapping of partition numbers to labels (excluding negative partition numbers)
+        #Labels are assumed to be in ascending partition number order
+        partitionsInDesign = set()
         for node, data in G.nodes(data=True):
             if data:
                 partition = int(data['block_partition_num'])
-                if startPartID is None:
-                    if partition >= 0:
-                        startPartID = partition
-                elif partition < startPartID and partition >= 0:
-                    startPartID = int(data['block_partition_num'])
+                if partition >= 0:
+                    partitionsInDesign.add(partition)
 
-        if startPartID is None:
-            print('Error, could not find first partition')
-            exit(1)
+        sortedPartitions = sorted(list(partitionsInDesign))
+        partitionNameMap = {}
+        for idx, partNum in enumerate(sortedPartitions):
+            partitionNameMap[partNum] = args.partition_names[idx]
 
+        #Set the names based on the partition number/name mapping above
         for node, data in G.nodes(data=True):
             if data:
                 partition = int(data['block_partition_num'])
@@ -119,8 +119,10 @@ def init():
 
                 if partition == -2:
                     data['label'] = 'I/O'
+                elif partition == -1:
+                    data['label'] = 'Unassigned Partition'
                 else:
-                    data['label'] = args.partition_names[partition-startPartID]
+                    data['label'] = partitionNameMap[partition]
 
     else:
         # Just use the given instance names
