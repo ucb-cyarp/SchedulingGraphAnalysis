@@ -1,8 +1,10 @@
+#!/usr/bin/python3
+
 import networkx as nx
 import matplotlib.cm as cm
 import argparse
 import copy
-from enum import Enum
+import GraphAnalysisCommon as gac
 
 # NodeName: instance_name
 # NodeLbl: block_label
@@ -18,139 +20,22 @@ from enum import Enum
 # ArcBytesPerSample:partition_crossing_bytes_per_sample
 # ArcSamplesPerBlock: ArcBytesPerBlock/ArcBytesPerSample
 
-class DoubleBufferType(Enum):
-    NONE = 0
-    PRODUCER = 1
-    CONSUMER = 2
-    PRODUCER_CONSUMER = 3
-
-    @staticmethod
-    def parse(dblBufType: str):
-        if dblBufType.lower() == 'none':
-            return DoubleBufferType.NONE
-        elif dblBufType.lower() == 'producer':
-            return DoubleBufferType.PRODUCER
-        elif dblBufType.lower() == 'consumer':
-            return DoubleBufferType.CONSUMER
-        elif dblBufType.lower() == 'producer_consumer':
-            return DoubleBufferType.PRODUCER_CONSUMER
-        else:
-            raise ValueError('Unknown DoubleBufferType: ' + dblBufType)
-
-    @staticmethod
-    def options():
-        return ['none', 'producer', 'consumer', 'producer_consumer']
-
 def init():
     # Parse CLI Arguments for Config File Location
-    parser = argparse.ArgumentParser(description='Analyzes a scheduling/communications graphml file')
+    parser = argparse.ArgumentParser(description='Analyzes a communications graphml file for cycles')
     parser.add_argument('graphmlFile', type=str, help='Path to the scheduling/communications graphml file')
-    parser.add_argument('--dblBuffer', type=str, choices=DoubleBufferType.options(), default='none', help='What form of double buffering is in use')
+    parser.add_argument('--dblBuffer', type=str, choices=gac.DoubleBufferType.options(), default='none', help='What form of double buffering is in use')
     parser.add_argument('-o', type=str, default='', help='The output for the graph eps file')
     parser.add_argument('--plotAllNodes', action='store_true', help='Plot all nodes in the unified plot')
     parser.add_argument('--partition-names', nargs='+', type=str, required=False, help='List of human readable names corresponding to each partition (in ascending order of partitions)')
 
     args = parser.parse_args()
 
-    dblBufferType = DoubleBufferType.parse(args.dblBuffer)
+    dblBufferType = gac.DoubleBufferType.parse(args.dblBuffer)
 
-    try:
-        G = nx.read_graphml(args.graphmlFile) # type: nx.Graph
-    except FileNotFoundError:
-        print('File not found: {}'.format(args.graphmlFile))
-        exit(1)
-
-    # Remove Partition -1 if it exists
-    partN1ID = ''
-    ioID = ''
-    for node, data in G.nodes(data=True):
-        if data:
-            if data['block_partition_num'] == -1:
-                partN1ID = node
-            if data['block_partition_num'] == -2:
-                ioID = node
-
-    if partN1ID:
-        n1Neighbors = list(G.neighbors(partN1ID))
-        if n1Neighbors:
-            print('Error, Partition -1 node is connected to other nodes')
-            exit(1)
-        else:
-            print('Removing Partition -1 node')
-            G.remove_node(partN1ID)
-
-    print('Imported graph {}\nNodes: {}\nArcs: {}'.format(args.graphmlFile, G.number_of_nodes(), G.number_of_edges()))
-
-    # Set the node labels (and check for duplicate partitions)
-    partitionSet = set()
-
-    if args.partition_names :
-        numOfNonIONodes = G.number_of_nodes()
-        if ioID:
-            numOfNonIONodes -= 1
-
-        if len(args.partition_names) != numOfNonIONodes: #+1 is for the I/O partition
-            print('Number of provided labels ({}) does not match number of non-I/O partitions ({})'.format(len(args.partition_names), numOfNonIONodes))
-            exit(1)
-
-        #Create a mapping of partition numbers to labels (excluding negative partition numbers)
-        #Labels are assumed to be in ascending partition number order
-        partitionsInDesign = set()
-        for node, data in G.nodes(data=True):
-            if data:
-                partition = int(data['block_partition_num'])
-                if partition >= 0:
-                    partitionsInDesign.add(partition)
-
-        sortedPartitions = sorted(list(partitionsInDesign))
-        partitionNameMap = {}
-        for idx, partNum in enumerate(sortedPartitions):
-            partitionNameMap[partNum] = args.partition_names[idx]
-
-        #Set the names based on the partition number/name mapping above
-        for node, data in G.nodes(data=True):
-            if data:
-                partition = int(data['block_partition_num'])
-                if partition in partitionSet:
-                    print('Error, Partition {} appeared more than once'.format(partition))
-                    exit(1)
-
-                partitionSet.add(partition)
-
-                if partition == -2:
-                    data['label'] = 'I/O'
-                elif partition == -1:
-                    data['label'] = 'Unassigned Partition'
-                else:
-                    data['label'] = partitionNameMap[partition]
-
-    else:
-        # Just use the given instance names
-        for node, data in G.nodes(data=True):
-            if data:
-                partition = int(data['block_partition_num'])
-                if partition in partitionSet:
-                    print('Error, Partition {} appeared more than once'.format(partition))
-                    exit(1)
-                partitionSet.add(partition)
-
-                data['label'] = data['instance_name']
+    G = gac.importGraph(args.graphmlFile, args.partition_names)
 
     return G, dblBufferType, args.o, args.plotAllNodes
-
-def printNodes(G: nx.MultiDiGraph):
-    for node, data in G.nodes(data=True):
-        print('Node: {}'.format(node))
-        if(data):
-            for key, val in data.items():
-                print('\t{}: {}'.format(key, val))
-
-def printArcs(G: nx.MultiDiGraph):
-    for src, dst, data in G.edges(data=True):
-        print('Arc: {}->{}'.format(src, dst))
-        if (data):
-            for key, val in data.items():
-                print('\t{}: {}'.format(key, val))
 
 def getCycles(G: nx.MultiDiGraph):
     # Get the simple cycles of the directed graph
@@ -219,7 +104,7 @@ def getCycles(G: nx.MultiDiGraph):
 
     return (None, None)
 
-def printCycles(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType, printAll: bool):
+def printCycles(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: gac.DoubleBufferType, printAll: bool):
     for cycleIdx, cycle in enumerate(cycles):
 
         # The cycle returned from networkx only lists each node once, we need to handle the final loop back from
@@ -230,9 +115,9 @@ def printCycles(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBu
         # Check if the number of initial conditions will cause deadlock
         effInitConditions = cycleInitConds[cycleIdx]
         nodesInCycles = len(origCycle)
-        if dblBufType == DoubleBufferType.PRODUCER or dblBufType == DoubleBufferType.CONSUMER:
+        if dblBufType == gac.DoubleBufferType.PRODUCER or dblBufType == gac.DoubleBufferType.CONSUMER:
             effInitConditions -= nodesInCycles # Each node needs 1 initial condition to prime it
-        elif dblBufType == DoubleBufferType.PRODUCER_CONSUMER:
+        elif dblBufType == gac.DoubleBufferType.PRODUCER_CONSUMER:
             effInitConditions -= nodesInCycles*2 # Each node needs 2 initial conditions to prime it
 
         if effInitConditions <= 0 or printAll:
@@ -265,7 +150,7 @@ def printCycles(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBu
             else:
                 print('Nodes: {:>2}, InitCond: {:>2}, Cycle: {}'.format(nodesInCycles, cycleInitConds[cycleIdx], cycleLbl))
 
-def printNodeStats(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType):
+def printNodeStats(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: gac.DoubleBufferType):
     nodeCycleCount = {}
     nodeEffInitCondPerNodeMin = {}
 
@@ -281,9 +166,9 @@ def printNodeStats(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: Doubl
         # Check if the number of initial conditions will cause deadlock
         effInitConditions = cycleInitConds[cycleIdx]
         nodesInCycles = len(origCycle)
-        if dblBufType == DoubleBufferType.PRODUCER or dblBufType == DoubleBufferType.CONSUMER:
+        if dblBufType == gac.DoubleBufferType.PRODUCER or dblBufType == gac.DoubleBufferType.CONSUMER:
             effInitConditions -= nodesInCycles # Each node needs 1 initial condition to prime it
-        elif dblBufType == DoubleBufferType.PRODUCER_CONSUMER:
+        elif dblBufType == gac.DoubleBufferType.PRODUCER_CONSUMER:
             effInitConditions -= nodesInCycles*2 # Each node needs 2 initial conditions to prime it
         effInitConditionsPerNode = effInitConditions/nodesInCycles
 
@@ -315,13 +200,13 @@ def printNodeStats(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: Doubl
             cycleCount = 0
             effInitCondPerNodeMin = float('NaN')
 
-        numInputArcs = len(list(G.in_edges(node)))
-        numOutputArcs = len(list(G.out_edges(node)))
+        numInputArcs = len(list(G.in_edges(node, keys=True))) # TODO: Check if keys=True is required to ensure seperate entries for each parallel arc
+        numOutputArcs = len(list(G.out_edges(node, keys=True))) # TODO: Check if keys=True is required to ensure seperate entries for each parallel arc
 
         rowFormat = '{:5d} | {:' + str(maxLblLen) + 's} | {:16d} | {:25.2f} | {:10d} | {:11d}'
         print(rowFormat.format(partition, name, cycleCount, effInitCondPerNodeMin, numInputArcs, numOutputArcs))
 
-def plotCyclesUnified(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotAllNodes: bool, filename: str):
+def plotCyclesUnified(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: gac.DoubleBufferType, plotAll: bool, plotAllNodes: bool, filename: str):
     # Plot all the cycles in one graph but
     plotGraph = copy.deepcopy(G)  # Create a deep copy since we will be changing the dictionaries
 
@@ -336,16 +221,7 @@ def plotCyclesUnified(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: Do
 
     plotGraph.graph['label'] = 'Communication Cycles'  # Graph property
 
-    # Remove the Dummy I/O Nodes from the graph.  These are not real nodes in the scheduling graph and area a
-    # side effect of using the existing graph export functions
-    nodesToRemove = []
-    for node, data in plotGraph.nodes(data=True):
-        if 'block_node_type' in data:
-            if data['block_node_type'] == 'Master':
-                nodesToRemove.append(node)
-
-    for node in nodesToRemove:
-        plotGraph.remove_node(node)
+    gac.removeDummyNodes(plotGraph)
 
     cyclesToPrint = 0
 
@@ -357,9 +233,9 @@ def plotCyclesUnified(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: Do
         # Check if the number of initial conditions will cause deadlock
         effInitConditions = cycleInitConds[cycleIdx]
         nodesInCycles = len(origCycle)
-        if dblBufType == DoubleBufferType.PRODUCER or dblBufType == DoubleBufferType.CONSUMER:
+        if dblBufType == gac.DoubleBufferType.PRODUCER or dblBufType == gac.DoubleBufferType.CONSUMER:
             effInitConditions -= nodesInCycles  # Each node needs 1 initial condition to prime it
-        elif dblBufType == DoubleBufferType.PRODUCER_CONSUMER:
+        elif dblBufType == gac.DoubleBufferType.PRODUCER_CONSUMER:
             effInitConditions -= nodesInCycles * 2  # Each node needs 2 initial conditions to prime it
 
         # Only plot failing cycles unless plotAll
@@ -418,7 +294,7 @@ def plotCyclesUnified(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: Do
     # aGraph.layout()
     aGraph.draw(filename + '.pdf')
 
-def plotCyclesSeperate(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotAllNodes: bool, filename: str):
+def plotCyclesSeperate(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: gac.DoubleBufferType, plotAll: bool, plotAllNodes: bool, filename: str):
     nodeNum = 0
 
     plotGraph = nx.MultiDiGraph()
@@ -432,9 +308,9 @@ def plotCyclesSeperate(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: D
         # Check if the number of initial conditions will cause deadlock
         effInitConditions = cycleInitConds[cycleIdx]
         nodesInCycles = len(origCycle)
-        if dblBufType == DoubleBufferType.PRODUCER or dblBufType == DoubleBufferType.CONSUMER:
+        if dblBufType == gac.DoubleBufferType.PRODUCER or dblBufType == gac.DoubleBufferType.CONSUMER:
             effInitConditions -= nodesInCycles  # Each node needs 1 initial condition to prime it
-        elif dblBufType == DoubleBufferType.PRODUCER_CONSUMER:
+        elif dblBufType == gac.DoubleBufferType.PRODUCER_CONSUMER:
             effInitConditions -= nodesInCycles * 2  # Each node needs 2 initial conditions to prime it
 
         # Only plot failing cycles unless plotAll
@@ -485,7 +361,7 @@ def plotCyclesSeperate(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: D
     # # aGraph.layout()
     # aGraph.draw(filename + '.pdf')
 
-def plotCycles(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: DoubleBufferType, plotAll: bool, plotSeperate: bool, plotAllNodes: bool, filename: str):
+def plotCycles(G: nx.MultiDiGraph, cycles, cycleInitConds, dblBufType: gac.DoubleBufferType, plotAll: bool, plotSeperate: bool, plotAllNodes: bool, filename: str):
     # To use networkx with matplotlib, it is probably a good idea to follow he example from
     # https://networkx.org/documentation/stable/auto_examples/drawing/plot_giant_component.html#sphx-glr-auto-examples-drawing-plot-giant-component-py
     # with help from https://stackoverflow.com/questions/15548506/node-labels-using-networkx
@@ -568,10 +444,11 @@ if __name__ == '__main__':
     print('==== Node Cycle Stats ====')
     printNodeStats(G, cycles, cycleInitConds, dblBufferType)
 
-    plotCycles(G, cycles, cycleInitConds, dblBufferType, True, False, plotAllNodes, outputName)
-    plotCycles(G, cycles, cycleInitConds, dblBufferType, False, False, plotAllNodes, outputName+'_fail')
-    plotCycles(G, cycles, cycleInitConds, dblBufferType, True, True, plotAllNodes, outputName)
-    plotCycles(G, cycles, cycleInitConds, dblBufferType, False, True, plotAllNodes, outputName+'_fail')
+    if outputName:
+        plotCycles(G, cycles, cycleInitConds, dblBufferType, True, False, plotAllNodes, outputName)
+        plotCycles(G, cycles, cycleInitConds, dblBufferType, False, False, plotAllNodes, outputName+'_fail')
+        plotCycles(G, cycles, cycleInitConds, dblBufferType, True, True, plotAllNodes, outputName)
+        plotCycles(G, cycles, cycleInitConds, dblBufferType, False, True, plotAllNodes, outputName+'_fail')
 
 # For the standard scheduling graph - omit cycles that are in all in a single partition
 # Get the initial conditions by looking at FIFO initial conditions and delay nodes

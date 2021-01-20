@@ -29,6 +29,6 @@ user=$(whoami)
 #Get the actual command to run
 cmd="${@:1}"
 
-echo "docker run --rm --name schedulingGraphAnalysisExec -a stdin -a stdout -v \"$srcDir\":\"$srcDir\": scheduling_graph_analysis:1.0 bash -c \"useradd -d $homeDir $user; sudo -H -u $user bash -c \"cd /working; /srv/SchedulingGraphAnalysis/src/findCyclesInCyclops.sh\"\""
+echo "docker run --rm --name schedulingGraphAnalysisExec -a stdin -a stdout -v \"$srcDir\":\"$srcDir\": scheduling_graph_analysis:1.0 bash -c \"useradd -d $homeDir $user; sudo -H -u $user bash -c \"cd /working; /srv/SchedulingGraphAnalysis/src/analyzeCyclops.sh\"\""
 
-docker run --rm --name schedulingGraphAnalysisExec -a stdin -a stdout -it -v "$srcDir":/working: scheduling_graph_analysis:1.0 bash -c "useradd -d $homeDir $user; sudo -H -u $user bash -c \"cd /working; /srv/SchedulingGraphAnalysis/src/findCyclesInCyclops.sh\""
+docker run --rm --name schedulingGraphAnalysisExec -a stdin -a stdout -it -v "$srcDir":/working: scheduling_graph_analysis:1.0 bash -c "useradd -d $homeDir $user; sudo -H -u $user bash -c \"cd /working; /srv/SchedulingGraphAnalysis/src/analyzeCyclops.sh\""

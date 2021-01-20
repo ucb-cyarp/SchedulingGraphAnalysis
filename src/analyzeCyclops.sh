@@ -20,3 +20,4 @@ if [[ ! (-d cycles) ]]; then
 fi
 
 python3 ${scriptSrc}/FindCycles.py ./genSrc/cOut_rev1BB_receiver/rx_demo_communicationInitCondGraph.graphml --dblBuffer none -o cycles/cycles --partition-names "${partNames[@]}"
+python3 ${scriptSrc}/ReportCommunication.py ./genSrc/cOut_rev1BB_receiver/rx_demo_communicationInitCondGraph.graphml -o comm/comm --partition-names "${partNames[@]}"
