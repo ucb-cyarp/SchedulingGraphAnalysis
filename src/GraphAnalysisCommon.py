@@ -45,7 +45,7 @@ def printArcs(G: nx.MultiDiGraph):
 
 def importGraph(graphmlFile : str, partition_names : str):
     try:
-        G = nx.read_graphml(graphmlFile) # type: nx.Graph
+        G = nx.read_graphml(graphmlFile, force_multigraph=True) # type: nx.Graph
     except FileNotFoundError:
         print('File not found: {}'.format(graphmlFile))
         exit(1)
