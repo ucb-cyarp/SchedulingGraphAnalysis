@@ -139,3 +139,14 @@ def removeDummyNodes(G: nx.MultiDiGraph):
 
     for node in nodesToRemove:
         G.remove_node(node)
+
+def colorMapRGBStr(cmap, val):
+    colorRGBA = cmap(val)
+    colorRGBAByte = (
+        int(colorRGBA[0] * 255), int(colorRGBA[1] * 255), int(colorRGBA[2] * 255),
+        int(colorRGBA[3] * 255))
+
+    colorStr = '#{:02x}{:02x}{:02x}{:02x}'.format(colorRGBAByte[0], colorRGBAByte[1],
+                                                  colorRGBAByte[2], colorRGBAByte[3])
+
+    return colorStr

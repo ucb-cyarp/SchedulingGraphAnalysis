@@ -5,6 +5,7 @@ import matplotlib.cm as cm
 import argparse
 import copy
 import GraphAnalysisCommon as gac
+import html
 
 def init():
     # Parse CLI Arguments for Config File Location
@@ -43,19 +44,16 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
         data['label'] = str(bytesPerSample)
         data['penwidth'] = float(bytesPerSample)*max_line_width/maxBytesPerSample
 
-        colorRGBA = cmap(float(bytesPerSample)/maxBytesPerSample)
-        cycleColorRGBAByte = (
-            int(colorRGBA[0] * 255), int(colorRGBA[1] * 255), int(colorRGBA[2] * 255),
-            int(colorRGBA[3] * 255))
-
-        colorStr = '#{:02x}{:02x}{:02x}{:02x}'.format(cycleColorRGBAByte[0], cycleColorRGBAByte[1],
-                                                      cycleColorRGBAByte[2], cycleColorRGBAByte[3])
+        colorStr = gac.colorMapRGBStr(cmap, float(bytesPerSample)/maxBytesPerSample)
         data['color'] = colorStr
 
     #Color the nodes according to their communication load
     maxCommBytes = 1
     commBytesIn = {}
     commBytesOut = {}
+    commArcsIn = {}
+    commArcsOut = {}
+    maxCommArcs = 1
     for node, data in plotGraph.nodes(data=True):
         inputArcs = list(G.in_edges(node, keys=True, data=True))
         outputArcs = list(G.out_edges(node, keys=True, data=True))
@@ -71,33 +69,29 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
 
         commBytesIn[node] = inBytes
         commBytesOut[node] = outBytes
+        numInputArcs = len(inputArcs)
+        numOutputArcs = len(outputArcs)
+        commArcsIn[node] = numInputArcs
+        commArcsOut[node] = numOutputArcs
         maxCommBytes = max(maxCommBytes, inBytes, outBytes)
+        maxCommArcs = max(maxCommArcs, numInputArcs, numOutputArcs)
 
     for node, data in plotGraph.nodes(data=True):
-        inColorRGBA = cmap(float(commBytesIn[node]) / maxCommBytes)
-        inColorRGBAByte = (
-            int(inColorRGBA[0] * 255), int(inColorRGBA[1] * 255), int(inColorRGBA[2] * 255),
-            int(inColorRGBA[3] * 255))
-
-        colorStrIn = '#{:02x}{:02x}{:02x}{:02x}'.format(inColorRGBAByte[0], inColorRGBAByte[1],
-                                                        inColorRGBAByte[2], inColorRGBAByte[3])
-
-        outColorRGBA = cmap(float(commBytesOut[node]) / maxCommBytes)
-        outColorRGBAByte = (
-            int(outColorRGBA[0] * 255), int(outColorRGBA[1] * 255), int(outColorRGBA[2] * 255),
-            int(outColorRGBA[3] * 255))
-        colorStrOut = '#{:02x}{:02x}{:02x}{:02x}'.format(outColorRGBAByte[0], outColorRGBAByte[1],
-                                                         outColorRGBAByte[2], outColorRGBAByte[3])
-
+        colorStrIn = gac.colorMapRGBStr(cmap, float(commBytesIn[node]) / maxCommBytes)
+        colorStrOut = gac.colorMapRGBStr(cmap, float(commBytesOut[node]) / maxCommBytes)
+        colorStrArcsIn = gac.colorMapRGBStr(cmap, float(commArcsIn[node]) / maxCommArcs)
+        colorStrArcsOut = gac.colorMapRGBStr(cmap, float(commArcsOut[node]) / maxCommArcs)
 
         #Set the label to contain this info (in html mode)
         #See https://stackoverflow.com/questions/17765301/graphviz-dot-how-to-change-the-colour-of-one-record-in-multi-record-shape
         #https://graphviz.org/doc/info/shapes.html#html
         oldLbl = data['label']
+        oldLbl = html.escape(oldLbl, quote=True)
         newLbl = '<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">' \
-                 '<tr><td>' + oldLbl + '</td></tr>' \
-                 '<tr><td bgcolor=\"' + colorStrIn + '\">Bytes In: ' + str(commBytesIn[node]) + '</td></tr>' \
-                 '<tr><td bgcolor=\"' + colorStrOut + '\">Bytes Out: ' + str(commBytesOut[node]) + '</td></tr>' \
+                 '<tr><td colspan=\"3\">' + oldLbl + '</td></tr>' \
+                 '<tr><td></td><td>Arcs</td><td>Bytes</td></tr>' \
+                 '<tr><td>In</td><td bgcolor=\"' + colorStrArcsIn + '\">' + str(commArcsIn[node]) + '</td><td bgcolor=\"' + colorStrIn + '\">' + str(commBytesIn[node]) + '</td></tr>' \
+                 '<tr><td>Out</td><td bgcolor=\"' + colorStrArcsOut + '\">' + str(commArcsOut[node]) + '</td><td bgcolor=\"' + colorStrOut + '\">' + str(commBytesOut[node]) + '</td></tr>' \
                  '</table>>'
 
         data['label'] = newLbl
@@ -106,13 +100,8 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
     #Add a node to act as a color scale:
     colorScaleStr = ''
     for c in range(0, 100, 2):
-        colorRGBA = cmap(float(c)/100)
-        colorRGBAByte = (
-            int(colorRGBA[0] * 255), int(colorRGBA[1] * 255), int(colorRGBA[2] * 255),
-            int(colorRGBA[3] * 255))
+        colorStr = gac.colorMapRGBStr(cmap, float(c)/100)
 
-        colorStr = '#{:02x}{:02x}{:02x}{:02x}'.format(colorRGBAByte[0], colorRGBAByte[1],
-                                                        colorRGBAByte[2], colorRGBAByte[3])
         if colorScaleStr:
             colorScaleStr += (':' + colorStr)
         else:
@@ -122,7 +111,7 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
     data['shape'] = 'box'
     data['fillcolor'] = colorScaleStr
     data['style'] = 'striped'
-    data['label'] = '{0, 0} -> {Node, Edge} Color Scale -> {' + str(maxCommBytes) + ', ' + str(maxBytesPerSample) + '}'
+    data['label'] = '{0, 0, 0} -> {Node Bytes, #Arcs, Arc Bytes} Color Scale -> {' + str(maxCommBytes) + ', ' + str(maxCommArcs) + ', ' + str(maxBytesPerSample) + '}'
     plotGraph.add_nodes_from([('ColorScale', data)])
 
     aGraph = nx.nx_agraph.to_agraph(plotGraph)
