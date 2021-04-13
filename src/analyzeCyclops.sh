@@ -8,6 +8,17 @@ oldDir=$(pwd)
 #Version without AGC Settling
 partNames=("RRC" "AGC Pwr. Avg." "AGC Correct. Loop" "TR Var. Delay" "TR Golay Corr." "TR Golay Peak" "TR Control" "TR Symbol Clk." "TR Early/Late" "TR Freq. Est" "TR Delay Accum" "Coarse CFO" "EQ" "CFO/Demod/Hdr Parse" "Data Packer" "Pkt. & Freeze Ctrl")
 
+#1Part
+#partNames=("All")
+#2 Parts
+#partNames=("Sample Domain" "Symbol Domain")
+#partNames=("RRC, AGC Pwr. Avg., AGC Correct. Loop, TR Var. Delay, TR Golay Corr., TR Golay Peak, TR Control" "TR Symbol Clk., TR Early/Late, TR Freq. Est, TR Delay Accum, Coarse CFO, EQ, CFO/Demod/Hdr Parse, Data Packer, Pkt. & Freeze Ctrl")
+#3 Parts
+#partNames=("RRC, AGC Pwr. Avg., AGC Correct. Loop, TR Var. Delay, TR Golay Corr." "TR Golay Peak, TR Control, TR Symbol Clk., TR Early/Late, TR Freq. Est, TR Delay Accum" "Coarse CFO, EQ, CFO/Demod/Hdr Parse, Data Packer, Pkt. & Freeze Ctrl")
+#4 Parts
+#partNames=("RRC, AGC Pwr. Avg., AGC Correct. Loop, TR Var. Delay" "TR Golay Corr., TR Golay Peak, TR Control, TR Symbol Clk." "TR Early/Late, TR Freq. Est, TR Delay Accum, Coarse CFO, Pkt. & Freeze Ctrl" "EQ, CFO/Demod/Hdr Parse, Data Packer")
+#partNames=("RRC, AGC Pwr. Avg., AGC Correct. Loop, TR Var. Delay" "TR Golay Corr., TR Golay Peak, TR Control" "TR Symbol Clk., TR Early/Late, TR Freq. Est, TR Delay Accum, Coarse CFO, Pkt. & Freeze Ctrl" "EQ, CFO/Demod/Hdr Parse, Data Packer")
+
 #Get build dir
 scriptSrc=$(dirname "${BASH_SOURCE[0]}")
 cd "$scriptSrc"
