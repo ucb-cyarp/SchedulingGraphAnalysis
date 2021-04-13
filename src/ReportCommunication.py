@@ -32,19 +32,19 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
 
     #The nodes had their labels set on import
     #Set the width of the arcs based on the bytes communicated + add labels
-    maxBytesPerSample = 1
+    maxBytesPerBlock = 1
     for src, dst, data in plotGraph.edges(data=True):
-        bytesPerSample = int(data['partition_crossing_bytes_per_sample'])
+        bytesPerBlock = int(data['partition_crossing_bytes_per_block'])
 
-        if bytesPerSample > maxBytesPerSample:
-            maxBytesPerSample = bytesPerSample
+        if bytesPerBlock > maxBytesPerBlock:
+            maxBytesPerBlock = bytesPerBlock
 
     for src, dst, data in plotGraph.edges(data=True):
-        bytesPerSample = int(data['partition_crossing_bytes_per_sample'])
-        data['label'] = str(bytesPerSample)
-        data['penwidth'] = float(bytesPerSample)*max_line_width/maxBytesPerSample
+        bytesPerBlock = int(data['partition_crossing_bytes_per_block'])
+        data['label'] = str(bytesPerBlock)
+        data['penwidth'] = float(bytesPerBlock)*max_line_width/maxBytesPerBlock
 
-        colorStr = gac.colorMapRGBStr(cmap, float(bytesPerSample)/maxBytesPerSample)
+        colorStr = gac.colorMapRGBStr(cmap, float(bytesPerBlock)/maxBytesPerBlock)
         data['color'] = colorStr
 
     #Color the nodes according to their communication load
@@ -59,13 +59,13 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
         outputArcs = list(G.out_edges(node, keys=True, data=True))
         inBytes = 0
         for src, dst, key, data in inputArcs:
-            bytesPerSample = int(data['partition_crossing_bytes_per_sample'])
-            inBytes += bytesPerSample
+            bytesPerBlock = int(data['partition_crossing_bytes_per_block'])
+            inBytes += bytesPerBlock
 
         outBytes = 0
         for src, dst, key, data in outputArcs:
-            bytesPerSample = int(data['partition_crossing_bytes_per_sample'])
-            outBytes += bytesPerSample
+            bytesPerBlock = int(data['partition_crossing_bytes_per_block'])
+            outBytes += bytesPerBlock
 
         commBytesIn[node] = inBytes
         commBytesOut[node] = outBytes
@@ -111,7 +111,7 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
     data['shape'] = 'box'
     data['fillcolor'] = colorScaleStr
     data['style'] = 'striped'
-    data['label'] = '{0, 0, 0} -> {Node Bytes, #Arcs, Arc Bytes} Color Scale -> {' + str(maxCommBytes) + ', ' + str(maxCommArcs) + ', ' + str(maxBytesPerSample) + '}'
+    data['label'] = '{0, 0, 0} -> {Node Bytes/Blk, #Arcs, Arc Bytes/Blk} Color Scale -> {' + str(maxCommBytes) + ', ' + str(maxCommArcs) + ', ' + str(maxBytesPerBlock) + '}'
     plotGraph.add_nodes_from([('ColorScale', data)])
 
     aGraph = nx.nx_agraph.to_agraph(plotGraph)
@@ -131,7 +131,7 @@ def reportNodeStats(G: nx.MultiDiGraph):
 
     partitionNums = sorted(partitions.keys())
 
-    headerFormat = 'Part# | {:' + str(maxLblLen) + 's} | Input Arcs | Output Arcs | Total Arcs | Bytes In / Samp | Bytes Out / Samp | Total Bytes Samp'
+    headerFormat = 'Part# | {:' + str(maxLblLen) + 's} | Input Arcs | Output Arcs | Total Arcs | Bytes In / Blk | Bytes Out / Blk | Total Bytes / Blk'
     print(headerFormat.format('Name'))
     for partition in partitionNums:
         node = partitions[partition]
@@ -144,15 +144,15 @@ def reportNodeStats(G: nx.MultiDiGraph):
 
         inBytes = 0
         for src, dst, key, data in inputArcs:
-            bytesPerSample = int(data['partition_crossing_bytes_per_sample'])
-            inBytes += bytesPerSample
+            bytesPerBlock = int(data['partition_crossing_bytes_per_block'])
+            inBytes += bytesPerBlock
 
         outBytes = 0
         for src, dst, key, data in outputArcs:
-            bytesPerSample = int(data['partition_crossing_bytes_per_sample'])
-            outBytes += bytesPerSample
+            bytesPerBlock = int(data['partition_crossing_bytes_per_block'])
+            outBytes += bytesPerBlock
 
-        rowFormat = '{:5d} | {:' + str(maxLblLen) + 's} | {:10d} | {:11d} | {:10d} | {:15d} | {:16d} | {:16d}'
+        rowFormat = '{:5d} | {:' + str(maxLblLen) + 's} | {:10d} | {:11d} | {:10d} | {:14d} | {:15d} | {:17d}'
         print(rowFormat.format(partition, name, numInputArcs, numOutputArcs, numInputArcs+numOutputArcs, inBytes, outBytes, inBytes+outBytes))
 
 if __name__ == '__main__':
