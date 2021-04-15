@@ -33,7 +33,7 @@ def init():
 
     dblBufferType = gac.DoubleBufferType.parse(args.dblBuffer)
 
-    G = gac.importGraph(args.graphmlFile, args.partition_names)
+    G = gac.importGraph(args.graphmlFile, args.partition_names, [], [], [])
 
     return G, dblBufferType, args.o, args.plotAllNodes
 

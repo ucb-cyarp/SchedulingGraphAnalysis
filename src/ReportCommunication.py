@@ -14,12 +14,15 @@ def init():
     parser.add_argument('-o', type=str, default='', help='The output for the graph eps file')
     parser.add_argument('--max-line-width', type=float, default=4.0, help='Width of the largest edge in the plot')
     parser.add_argument('--partition-names', nargs='+', type=str, required=False, help='List of human readable names corresponding to each partition (in ascending order of partitions)')
+    parser.add_argument('--partitionCPUMapping', nargs="+", type=int, required=False, help='List of Partition to CPU mappings, the first entry is for the I/O partition (-2), the subsequent entries are for partitions starting from partition 0')
+    parser.add_argument('--cpuL3Mapping', nargs="+", type=int, required=False, help='A array of CPU to L3 caches, one entry per CPU starting from CPU0')
+    parser.add_argument('--l3DieMapping', nargs="+", type=int, required=False, help='A array of L3s to dies, one entry per L3 starting from L3_0')
 
     args = parser.parse_args()
 
-    G = gac.importGraph(args.graphmlFile, args.partition_names)
+    G = gac.importGraph(args.graphmlFile, args.partition_names, args.partitionCPUMapping, args.cpuL3Mapping, args.l3DieMapping)
 
-    return G, args.o, args.max_line_width
+    return G, args.o, args.max_line_width, args.cpuL3Mapping is not None, args.l3DieMapping is not None
 
 def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
     cmap = cm.get_cmap(name='viridis')
@@ -54,18 +57,28 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
     commArcsIn = {}
     commArcsOut = {}
     maxCommArcs = 1
+    l3NodesMap = {}
+
     for node, data in plotGraph.nodes(data=True):
         inputArcs = list(G.in_edges(node, keys=True, data=True))
         outputArcs = list(G.out_edges(node, keys=True, data=True))
         inBytes = 0
-        for src, dst, key, data in inputArcs:
-            bytesPerBlock = int(data['partition_crossing_bytes_per_block'])
+        for src, dst, key, in_arc_data in inputArcs:
+            bytesPerBlock = int(in_arc_data['partition_crossing_bytes_per_block'])
             inBytes += bytesPerBlock
 
         outBytes = 0
-        for src, dst, key, data in outputArcs:
-            bytesPerBlock = int(data['partition_crossing_bytes_per_block'])
+        for src, dst, key, out_arc_data in outputArcs:
+            bytesPerBlock = int(out_arc_data['partition_crossing_bytes_per_block'])
             outBytes += bytesPerBlock
+
+        if 'l3' in data:
+            l3 = int(data['l3'])
+
+            if l3 not in l3NodesMap:
+                l3NodesMap[l3] = [node]
+            else:
+                l3NodesMap[l3].append(node)
 
         commBytesIn[node] = inBytes
         commBytesOut[node] = outBytes
@@ -87,7 +100,7 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
         #https://graphviz.org/doc/info/shapes.html#html
         oldLbl = data['label']
         oldLbl = html.escape(oldLbl, quote=True)
-        newLbl = '<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">' \
+        newLbl = '<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" bgcolor=\"#ffffffff\">' \
                  '<tr><td colspan=\"3\">' + oldLbl + '</td></tr>' \
                  '<tr><td></td><td>Arcs</td><td>Bytes</td></tr>' \
                  '<tr><td>In</td><td bgcolor=\"' + colorStrArcsIn + '\">' + str(commArcsIn[node]) + '</td><td bgcolor=\"' + colorStrIn + '\">' + str(commBytesIn[node]) + '</td></tr>' \
@@ -115,6 +128,15 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
     plotGraph.add_nodes_from([('ColorScale', data)])
 
     aGraph = nx.nx_agraph.to_agraph(plotGraph)
+
+    #NetworkX does not appear tp handle subgraphs for plotting but pygraphviz does and we are using it to send the graph to graphviz anyway
+    if l3NodesMap:
+        for l3, nodesInL3 in l3NodesMap.items():
+            l3Name = 'L3_'+str(l3)
+            l3Cluster = 'cluster_'+str(l3) #This needs to be prefixed with cluster_ for graphviz to cluster the nodes within
+            aGraph.add_subgraph(nodesInL3, name=l3Cluster, label=l3Name, style='filled', color='lightgrey')
+
+    #TODO: Cluster of Clusters for dies
 
     aGraph.layout(prog='dot')
     # aGraph.layout()
@@ -155,10 +177,84 @@ def reportNodeStats(G: nx.MultiDiGraph):
         rowFormat = '{:5d} | {:' + str(maxLblLen) + 's} | {:10d} | {:11d} | {:10d} | {:14d} | {:15d} | {:17d}'
         print(rowFormat.format(partition, name, numInputArcs, numOutputArcs, numInputArcs+numOutputArcs, inBytes, outBytes, inBytes+outBytes))
 
-if __name__ == '__main__':
-    G, outputName, max_line_width = init()
+def reportGroupedStats(G: nx.MultiDiGraph, grouping : str): #grouping can be l3 or die
+    l3InArcs = dict()
+    l3OutArcs = dict()
+    l3InBytes = dict()
+    l3OutBytes = dict()
 
+    l3InnerArcs = dict()
+    l3InnerBytes = dict()
+
+    l3s = set()
+
+    for src, dst, data in G.edges(data=True):
+        srcL3 = G.nodes[src][grouping]
+        dstL3 = G.nodes[dst][grouping]
+
+        l3s.add(srcL3)
+        l3s.add(dstL3)
+
+        #Report if src and dst L3 are different
+        if data and srcL3 != dstL3:
+            #Handle Out of Src Partition
+            if srcL3 not in l3OutArcs:
+                l3OutArcs[srcL3] = 1
+                l3OutBytes[srcL3] = int(data['partition_crossing_bytes_per_block'])
+            else:
+                l3OutArcs[srcL3] += 1
+                l3OutBytes[srcL3] += int(data['partition_crossing_bytes_per_block'])
+
+            #Handle Into Dst Partition
+            if dstL3 not in l3InArcs:
+                l3InArcs[dstL3] = 1
+                l3InBytes[dstL3] = int(data['partition_crossing_bytes_per_block'])
+            else:
+                l3InArcs[dstL3] += 1
+                l3InBytes[dstL3] += int(data['partition_crossing_bytes_per_block'])
+
+        elif data:
+            #If srcL3 == dstL3
+            if srcL3 not in l3InnerArcs:
+                l3InnerArcs[srcL3] = 1
+                l3InnerBytes[srcL3] = int(data['partition_crossing_bytes_per_block'])
+            else:
+                l3InnerArcs[srcL3] += 1
+                l3InnerBytes[srcL3] += int(data['partition_crossing_bytes_per_block'])
+
+    l3List = sorted(l3s)
+
+    headerFormat = '{} | Input Arcs | Output Arcs | Ext Arcs | Bytes In / Blk | Bytes Out / Blk | Total Ext Bytes / Blk | Internal Arcs | Internal Bytes / Blk'
+    print(headerFormat.format(grouping.upper()))
+
+    for l3 in l3List:
+        internalArcs = l3InnerArcs[l3]
+        internalBytes = l3InnerBytes[l3]
+
+        inputArcs = l3InArcs[l3]
+        outputArcs = l3OutArcs[l3]
+        inputBytes = l3InBytes[l3]
+        outputBytes = l3OutBytes[l3]
+
+        rowFormat = '{:' + str(len(grouping)) + 'd} | {:10d} | {:11d} | {:8d} | {:14d} | {:15d} | {:21d} | {:13d} | {:20d}'
+        print(rowFormat.format(l3, inputArcs, outputArcs, inputArcs + outputArcs, inputBytes, outputBytes,
+                               inputBytes + outputBytes, internalArcs, internalBytes))
+
+if __name__ == '__main__':
+    G, outputName, max_line_width, analyzeL3, analyzeDie = init()
+
+    print('Node Stats:')
     reportNodeStats(G)
+
+    if analyzeL3:
+        print('')
+        print('L3 Stats:')
+        reportGroupedStats(G, 'l3')
+
+    if analyzeDie:
+        print('')
+        print('Die Stats:')
+        reportGroupedStats(G, 'die')
 
     if outputName:
         plotGraph(G, outputName, max_line_width)

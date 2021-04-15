@@ -6,6 +6,9 @@ import argparse
 import copy
 from enum import Enum
 
+from typing import List
+
+
 class DoubleBufferType(Enum):
     NONE = 0
     PRODUCER = 1
@@ -43,7 +46,8 @@ def printArcs(G: nx.MultiDiGraph):
             for key, val in data.items():
                 print('\t{}: {}'.format(key, val))
 
-def importGraph(graphmlFile : str, partition_names : str):
+def importGraph(graphmlFile : str, partition_names : str, partitionCPUList : List[int], cpuL3List : List[int],
+                l3DieList : List[int]):
     try:
         G = nx.read_graphml(graphmlFile, force_multigraph=True) # type: nx.Graph
     except FileNotFoundError:
@@ -69,15 +73,41 @@ def importGraph(graphmlFile : str, partition_names : str):
             print('Removing Partition -1 node')
             G.remove_node(partN1ID)
 
+    numOfNonIONodes = G.number_of_nodes()
+    if ioID:
+        numOfNonIONodes -= 1
+
     print('Imported graph {}\nNodes: {}\nArcs: {}'.format(graphmlFile, G.number_of_nodes(), G.number_of_edges()))
 
-    # Set the node labels (and check for duplicate partitions)
     partitionSet = set()
 
+    partitionCPUMap = dict()
+    partitionL3Map = dict()
+    partitionDieMap = dict()
+
+    if partitionCPUList:
+        partitionCPUMap[-2] = partitionCPUList[0]
+        for i in range(1, len(partitionCPUList)):
+            partitionCPUMap[i-1] = partitionCPUList[i]
+
+        if cpuL3List:
+            for partition, cpu in partitionCPUMap.items():
+                if cpu >= len(cpuL3List):
+                    print('L3 mapping not provided for CPU {}'.format(cpu))
+                    exit(1)
+                partitionL3Map[partition] = cpuL3List[cpu]
+
+            if l3DieList:
+                for partition, cpu in partitionCPUMap.items():
+                    l3 = cpuL3List[cpu]
+
+                    if l3 >= len(l3DieList):
+                        print('Die mapping not provided for L3 {}'.format(l3))
+                        exit(1)
+                    partitionDieMap[partition] = l3DieList[l3]
+
     if partition_names:
-        numOfNonIONodes = G.number_of_nodes()
-        if ioID:
-            numOfNonIONodes -= 1
+        # Set the node labels (and check for duplicate partitions)
 
         if len(partition_names) != numOfNonIONodes: #+1 is for the I/O partition
             print('Number of provided labels ({}) does not match number of non-I/O partitions ({})'.format(len(partition_names), numOfNonIONodes))
@@ -125,6 +155,20 @@ def importGraph(graphmlFile : str, partition_names : str):
                 partitionSet.add(partition)
 
                 data['label'] = data['instance_name']
+
+    #Set CPU, L3, and Die properties
+    for node, data in G.nodes(data=True):
+        if data:
+            partition = int(data['block_partition_num'])
+
+            if partitionCPUMap:
+                data['cpu'] = partitionCPUMap[partition]
+
+                if partitionL3Map:
+                    data['l3'] = partitionL3Map[partition]
+
+                    if partitionDieMap:
+                        data['die'] = partitionDieMap[partition]
 
     return G
 
