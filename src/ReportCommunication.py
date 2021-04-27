@@ -228,13 +228,31 @@ def reportGroupedStats(G: nx.MultiDiGraph, grouping : str): #grouping can be l3 
     print(headerFormat.format(grouping.upper()))
 
     for l3 in l3List:
-        internalArcs = l3InnerArcs[l3]
-        internalBytes = l3InnerBytes[l3]
+        internalArcs = 0
+        internalBytes = 0
 
-        inputArcs = l3InArcs[l3]
-        outputArcs = l3OutArcs[l3]
-        inputBytes = l3InBytes[l3]
-        outputBytes = l3OutBytes[l3]
+        inputArcs = 0
+        outputArcs = 0
+        inputBytes = 0
+        outputBytes = 0
+
+        if l3 in l3InnerArcs:
+            internalArcs = l3InnerArcs[l3]
+
+        if l3 in l3InnerBytes:
+            internalBytes = l3InnerBytes[l3]
+
+        if l3 in l3InArcs:
+            inputArcs = l3InArcs[l3]
+
+        if l3 in l3OutArcs:
+            outputArcs = l3OutArcs[l3]
+
+        if l3 in l3InBytes:
+            inputBytes = l3InBytes[l3]
+
+        if l3 in l3OutBytes:
+            outputBytes = l3OutBytes[l3]
 
         rowFormat = '{:' + str(len(grouping)) + 'd} | {:10d} | {:11d} | {:8d} | {:14d} | {:15d} | {:21d} | {:13d} | {:20d}'
         print(rowFormat.format(l3, inputArcs, outputArcs, inputArcs + outputArcs, inputBytes, outputBytes,
