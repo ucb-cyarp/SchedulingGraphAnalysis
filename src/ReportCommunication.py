@@ -141,6 +141,7 @@ def plotGraph(G: nx.MultiDiGraph, filename: str, max_line_width : float ):
     aGraph.layout(prog='dot')
     # aGraph.layout()
     aGraph.draw(filename + '.pdf')
+    aGraph.write(filename + '.dot')
 
 def reportNodeStats(G: nx.MultiDiGraph):
     maxLblLen = len('Name')
