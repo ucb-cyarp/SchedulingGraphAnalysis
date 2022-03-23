@@ -326,7 +326,46 @@ cpuL3=(0 0 0 0
 #                                         #VITIS_PARTITION directive of 16 under rx/SymbolDomainOuter
 #           )
 
-#Rev 1.22 Combine GolayCorr and Golay Peak, Symbol Domain Corr and Coarse CFO, Pkt Ctrl and Data Packer
+##Rev 1.22 Combine GolayCorr and Golay Peak, Symbol Domain Corr and Coarse CFO, Pkt Ctrl and Data Packer
+#partNames=(
+#"RRC"                                    #VITIS_PARTITION directive of 1 under rx/SampDomain/RootRaisedCosine
+#"AGC"                                    #VITIS_PARTITION directive of 2 under rx/SampDomain/AGC/AGCPwrAvg
+#                                         #VITIS_PARTITION directive of 2 under rx/SampDomain/AGC/AGCLoopAndCorrect
+#                                         #VITIS_PARTITION directive of 2 under rx/Subsystem
+#"TR Golay Corr & Peak"                   #VITIS_PARTITION directive of 3 under rx/SampDomain/TimingRecoveryAndCorrelator/GolayCorrelatorAndPeakDetectOuter/GolayPeakDetect/GolayCorrelator
+#                                         #VITIS_PARTITION directive of 3 under rx/SampDomain/TimingRecoveryAndCorrelator/GolayCorrelatorAndPeakDetectOuter
+#                                         #VITIS_PARTITION directive of 3 under rx/SampDomain/TimingRecoveryAndCorrelator/GolayCorrelatorAndPeakDetectOuter/GolayPeakDetect
+#"TR Control"                             #VITIS_PARTITION directive of 5 under rx/SampDomain/TimingRecoveryAndCorrelator/TRControl
+#                                         #VITIS_PARTITION directive of 5 under rx/SampDomain/TimingRecoveryAndCorrelator/TrControlIntermediateOutputs
+#                                         #VITIS_PARTITION directive of 5 under rx/ResetFeedbackAndPipelining
+#"TR Error Calc & Freq Est & Delay Accum" #VITIS_PARTITION directive of 6 under rx/SampDomain/TimingRecoveryAndCorrelator/TRFreqEst
+#                                         #VITIS_PARTITION directive of 6 under rx/SampDomain/TimingRecoveryAndCorrelator/DelayAccum
+#                                         #VITIS_PARTITION directive of 6 under rx/SampDomain/TimingRecoveryAndCorrelator/CalcDelayError
+#"TR Var Delay"                           #VITIS_PARTITION directive of 7 under rx/SampDomain/TimingRecoveryAndCorrelator/VarDelayWithSampleAlignment
+#"TR Symb Clk & Downsample"               #VITIS_PARTITION directive of 8 under rx/SampDomain/TimingRecoveryAndCorrelator/VarDelayDecimSync
+#                                         #VITIS_PARTITION directive of 8 under rx/SampDomain/TimingRecoveryAndCorrelator/SymbolClock
+#                                         #VITIS_PARTITION directive of 8 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/DownsampleSymbol
+#                                         #VITIS_PARTITION directive of 8 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/dummyNode
+#"TR Early/Late"                          #VITIS_PARTITION directive of 9 under rx/SampDomain/TimingRecoveryAndCorrelator/EarlyLate
+#"Symb Golay Corr & Peak & Coarse CFO"    #VITIS_PARTITION directive of 10 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/GolayPeakDetectSymbolDomain/GolayPeakDetectSymbDomain/GolayCorrelator
+#                                         #VITIS_PARTITION directive of 10 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/GolayPeakDetectSymbolDomain/GolayPeakDetectSymbDomain
+#                                         #VITIS_PARTITION directive of 10 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/GolayPeakDetectSymbolDomain
+#                                         #VITIS_PARTITION directive of 10 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/CoarseCFOCorrect
+#"EQ & Demod"                             #VITIS_PARTITION directive of 12 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/EQ/BlockLMS/AdaptCoefs/CoefUpdate/VITIS_CLOCK_DOMAIN_UpdateCoefsEveryN/ToCorrection
+#                                         #VITIS_PARTITION directive of 12 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/EQ/BlockLMS/AdaptCoefs/CoefUpdate/BreakComboLoop
+#                                         #VITIS_PARTITION directive of 12 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/EQ
+#"EQ Adapt"                               #VITIS_PARTITION directive of 13 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/EQ/BlockLMS/AdaptCoefs
+#                                         #VITIS_PARTITION directive of 13 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/EQ/LMSStepAdaptCtrl/LMSStep
+#"Pkt Control & Data Packer"              #VITIS_PARTITION directive of 16 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/DataPacker
+#                                         #VITIS_PARTITION directive of 16 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/PacketRxController
+#                                         #VITIS_PARTITION directive of 16 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/PacketRxControllerUpsample
+#                                         #VITIS_PARTITION directive of 16 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/FreezeController
+#                                         #VITIS_PARTITION directive of 16 under rx/SymbolDomainOuter/VITIS_CLOCK_DOMAIN_SymbolDomain/FreezeControllerUpsample
+#                                         #VITIS_PARTITION directive of 16 under rx/SymbolDomainOuter
+#           )
+
+##Current fastest partitioning
+#Rev 1.22 / 1.32 / 1.34 / 1.40 Combine GolayCorr and Golay Peak, Symbol Domain Corr and Coarse CFO, Pkt Ctrl and Data Packer
 partNames=(
 "RRC"                                    #VITIS_PARTITION directive of 1 under rx/SampDomain/RootRaisedCosine
 "AGC"                                    #VITIS_PARTITION directive of 2 under rx/SampDomain/AGC/AGCPwrAvg
