@@ -1,4 +1,6 @@
 # Scheduling Graph Analysis
+Zenodo Concept DOI: [![Concept DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6526276.svg)](https://doi.org/10.5281/zenodo.6526276)
+
 
 This is a collection of scripts for analyzing communication and scheduling graphs.
 
